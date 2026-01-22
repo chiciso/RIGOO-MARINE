@@ -29,7 +29,6 @@ class _SignInScreenState extends State<SignInScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    
 
     setState(() => _isLoading = true);
 
@@ -41,8 +40,10 @@ class _SignInScreenState extends State<SignInScreen> {
     }
     setState(() => _isLoading = false);
 
-    // Navigate to main screen (simulating successful login)
-    context.go(AppConstants.mainRoute);
+    // Check if this is first time login (in production, check from API/storage)
+    // For demo, assume it's first time login and show onboarding
+    // Navigate to onboarding first, then onboarding will go to main
+    context.go(AppConstants.onboardingRoute);
   }
 
   @override

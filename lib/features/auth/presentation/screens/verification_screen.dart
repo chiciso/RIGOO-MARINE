@@ -90,7 +90,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     }
     setState(() => _isLoading = false);
 
-    // Navigate to welcome screen
+    // After verification, show welcome screen briefly, then onboarding
     context.go(AppConstants.welcomeRoute);
   }
 
@@ -128,7 +128,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Please enter the code sent to your\nemail for verification.',
+                'Please enter code sent to your\nemail for verification.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textSecondary,
                 ),

@@ -44,7 +44,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     setState(() => _isLoading = false);
 
-    // Navigate to verification screen
+    // Navigate to verification screen (user needs to verify email first)
     context.go(
       AppConstants.verificationRoute,
       extra: _emailController.text,

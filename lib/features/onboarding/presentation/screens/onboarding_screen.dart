@@ -57,7 +57,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      context.go(AppConstants.signInRoute);
+      // Last page - go to main app
+      context.go(AppConstants.mainRoute);
     }
   }
 
@@ -73,8 +74,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: _onPageChanged,
                 itemCount: _pages.length,
                 itemBuilder: (context, index) => OnboardingPage(
-                  data: _pages[index]
-                  ),
+                  data: _pages[index]),
               ),
             ),
             Padding(

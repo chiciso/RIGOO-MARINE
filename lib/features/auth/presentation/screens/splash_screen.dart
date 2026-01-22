@@ -24,9 +24,12 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
     
-    // For now, always go to onboarding
-    // In production, check if user has completed onboarding and is logged in
-    context.go(AppConstants.onboardingRoute);
+    // Check if user is logged in and has seen onboarding
+    // For now, always go to sign in
+    // In production, check SharedPreferences for:
+    // - isLoggedIn
+    // - hasSeenOnboarding
+    context.go(AppConstants.signInRoute);
   }
 
   @override
@@ -47,10 +50,9 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child:  Image.asset(
-                  'assets/images/logo.png',
-                  width: 100,
-                  height:100,
+                child: const Icon(
+                  Icons.directions_boat,
+                  size: 64,
                   color: AppTheme.primaryColor,
                 ),
               ),
@@ -67,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen> {
               Text(
                 AppConstants.appTagline,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha:0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
               ),
             ],

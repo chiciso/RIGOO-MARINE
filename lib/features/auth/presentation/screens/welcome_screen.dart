@@ -23,7 +23,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     if (!mounted) {
       return;
     }
-    context.go(AppConstants.mainRoute);
+    
+    // After welcome, show onboarding for first-time users
+    context.go(AppConstants.onboardingRoute);
   }
 
   @override
@@ -61,7 +63,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const Spacer(),
               // Navigation button (optional)
               FloatingActionButton(
-                onPressed: () => context.go(AppConstants.mainRoute),
+                onPressed: () => context.go(AppConstants.onboardingRoute),
                 backgroundColor: AppTheme.primaryColor,
                 child: const Icon(
                   Icons.arrow_forward,

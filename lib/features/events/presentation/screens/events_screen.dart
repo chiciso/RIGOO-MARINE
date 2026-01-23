@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/event_card.dart';
@@ -50,7 +51,7 @@ class EventsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: OutlinedButton(
                 onPressed: () {
-                  context.go(AppConstants.createEventRoute);
+                  context.push(AppConstants.createEventRoute);
                 },
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
@@ -98,7 +99,7 @@ class EventsScreen extends StatelessWidget {
                     name: event['name'],
                     imageUrl: event['imageUrl'],
                     onTap: () {
-                      context.go(
+                      context.push(
                         AppConstants.eventDetailsRoute,
                         extra: event['id'],
                       );

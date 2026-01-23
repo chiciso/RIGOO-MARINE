@@ -24,7 +24,7 @@ class SellScreen extends StatelessWidget {
               title: 'Create Listing',
               subtitle: 'Sell your boat, yacht or jet ski',
               icon: Icons.directions_boat,
-              onTap: () => context.go(AppConstants.createListingRoute),
+              onTap: () => context.push(AppConstants.createListingRoute),
             ),
             const SizedBox(height: 16),
             _buildSellOption(
@@ -32,7 +32,7 @@ class SellScreen extends StatelessWidget {
               title: 'Create Event',
               subtitle: 'Organize yacht tours and events',
               icon: Icons.event,
-              onTap: () => context.go(AppConstants.createEventRoute),
+              onTap: () => context.push(AppConstants.createEventRoute),
             ),
           ],
         ),
@@ -55,7 +55,7 @@ class SellScreen extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE9ECEF)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -66,7 +66,7 @@ class SellScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha:0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(

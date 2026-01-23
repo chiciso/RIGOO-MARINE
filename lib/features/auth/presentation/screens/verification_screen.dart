@@ -212,6 +212,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
               const SizedBox(height: 24),
               // Resend code
+              //can be changed to listview
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -219,31 +220,34 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     "Didn't receive any code? ",
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  TextButton(
-                    onPressed: _resendTimer > 0 ? null : _resendCode,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Resend Again',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _resendTimer > 0
-                                ? AppTheme.textSecondary
-                                : AppTheme.primaryColor,
-                          ),
-                        ),
-                        if (_resendTimer > 0)
+                  // changed to remove overflowed
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _resendTimer > 0 ? null : _resendCode,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Text(
-                            'Request new code in 00:${
-                              _resendTimer.toString().padLeft(2, '0')
-                              }s',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.textSecondary,
+                            'Resend Again',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _resendTimer > 0
+                                  ? AppTheme.textSecondary
+                                  : AppTheme.primaryColor,
                             ),
                           ),
-                      ],
+                          if (_resendTimer > 0)
+                            Text(
+                              'Request new code in 00:${
+                                _resendTimer.toString().padLeft(2, '0')
+                                }s',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ],

@@ -141,7 +141,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   price: listing['price'],
                   imageUrl: listing['imageUrl'],
                   onTap: () {
-                    context.go(
+                    context.push(
                       AppConstants.itemDetailsRoute,
                       extra: listing['id'],
                     );

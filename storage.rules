@@ -1,0 +1,94 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isValidSize() {
+      // Max 5MB
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // User profile images
+    match /users/{userId}/{fileName} {
+      // Anyone can read profile images
+      allow read: if true;
+      
+      // Only authenticated user can upload their own profile image
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId &&
+                     isImageFile() &&
+                     isValidSize();
+      
+      // Only owner can delete their images
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Listing images
+    match /listings/{listingId}/{fileName} {
+      // Anyone can read listing images
+      allow read: if true;
+      
+      // Only authenticated users can upload listing images
+      allow write: if isAuthenticated() &&
+                     isImageFile() &&
+                     isValidSize();
+      
+      // Only owner (checked via Firestore) or admin can delete
+      allow delete: if isAuthenticated();
+    }
+
+    // Event images
+    match /events/{eventId}/{fileName} {
+      // Anyone can read event images
+      allow read: if true;
+      
+      // Only authenticated users can upload event images
+      allow write: if isAuthenticated() &&
+                     isImageFile() &&
+                     isValidSize();
+      
+      // Only organizer or admin can delete
+      allow delete: if isAuthenticated();
+    }
+
+    // Part images
+    match /parts/{partId}/{fileName} {
+      // Anyone can read part images
+      allow read: if true;
+      
+      // Only authenticated users can upload part images
+      allow write: if isAuthenticated() &&
+                     isImageFile() &&
+                     isValidSize();
+      
+      allow delete: if isAuthenticated();
+    }
+
+    // Service images
+    match /services/{serviceId}/{fileName} {
+      // Anyone can read service images
+      allow read: if true;
+      
+      // Only authenticated users can upload service images
+      allow write: if isAuthenticated() &&
+                     isImageFile() &&
+                     isValidSize();
+      
+      allow delete: if isAuthenticated();
+    }
+
+    // Default deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,129 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read user profiles (for displaying owner info)
+      allow read: if true;
+      
+      // Users can create their own profile on signup
+      allow create: if isOwner(userId);
+      
+      // Users can only update their own profile
+      allow update: if isOwner(userId) && 
+                      request.resource.data.role == resource.data.role; // Prevent role change
+      
+      // Users can delete their own account
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Listings collection
+    match /listings/{listingId} {
+      // Anyone can read active listings
+      allow read: if resource.data.isActive == true || 
+                    isOwner(resource.data.ownerId) ||
+                    isAdmin();
+      
+      // Only authenticated and verified users can create listings
+      allow create: if isAuthenticated() && 
+                      isEmailVerified() &&
+                      request.resource.data.ownerId == request.auth.uid;
+      
+      // Only owner can update their listing
+      allow update: if isOwner(resource.data.ownerId) &&
+                      request.resource.data.ownerId == resource.data.ownerId; // Prevent owner change
+      
+      // Only owner or admin can delete
+      allow delete: if isOwner(resource.data.ownerId) || isAdmin();
+    }
+
+    // Events collection
+    match /events/{eventId} {
+      // Anyone can read active events
+      allow read: if resource.data.isActive == true || 
+                    isOwner(resource.data.organizerId) ||
+                    isAdmin();
+      
+      // Only authenticated and verified users can create events
+      allow create: if isAuthenticated() && 
+                      isEmailVerified() &&
+                      request.resource.data.organizerId == request.auth.uid;
+      
+      // Only organizer can update their event
+      allow update: if isOwner(resource.data.organizerId) &&
+                      request.resource.data.organizerId == resource.data.organizerId;
+      
+      // Only organizer or admin can delete
+      allow delete: if isOwner(resource.data.organizerId) || isAdmin();
+    }
+
+    // Parts collection
+    match /parts/{partId} {
+      // Anyone can read parts
+      allow read: if true;
+      
+      // Only admins can create/update/delete parts
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Services collection
+    match /services/{serviceId} {
+      // Anyone can read available services
+      allow read: if resource.data.isAvailable == true || isAdmin();
+      
+      // Only authenticated users can create services
+      allow create: if isAuthenticated() && isEmailVerified();
+      
+      // Only service owner can update
+      allow update: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Only owner or admin can delete
+      allow delete: if isAuthenticated() &&
+                      (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      // Users can only read their own orders, admins can read all
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // Only authenticated users can create orders
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Only admins can update order status
+      allow update: if isAdmin();
+      
+      // Users can cancel their own orders, admins can delete any
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // Reviews collection (future feature)
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isEmailVerified();
+      allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+  }
+}

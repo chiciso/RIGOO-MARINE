@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1088170354314",
+    "project_id": "rigoo-marine",
+    "storage_bucket": "rigoo-marine.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1088170354314:android:038b6c7cdb28e35ed2af73",
+        "android_client_info": {
+          "package_name": "com.example.rigoo_marine"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1088170354314-lepli0l4q498s0403vp4jf6lfgheu3hv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvec2aYOX-e4SxrhjIdxUoTztdJjXI-BM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1088170354314-lepli0l4q498s0403vp4jf6lfgheu3hv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

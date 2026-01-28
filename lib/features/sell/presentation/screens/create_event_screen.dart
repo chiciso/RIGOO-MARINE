@@ -98,7 +98,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 16),
+                  horizontal: 16, vertical: 16,),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F3F5),
                   borderRadius: BorderRadius.circular(12),
@@ -180,7 +180,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               // Includes Food & Drinks
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12
+                  horizontal: 16, vertical: 12,
                   ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8F9FA),
@@ -243,7 +243,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               RadioGroup(
                 groupValue: _accessType,
                 onChanged: (value){
-                  setState(() => _accessType = value!);
+                  setState(() => _accessType = value! as String);
                 },
                 child: const Row(children: [
                   Expanded(child: RadioListTile<String>(
@@ -257,7 +257,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       title: Text('Private'),
                       value:'Private',
                       activeColor: AppTheme.primaryColor,
-                      contentPadding: EdgeInsets.zero, ))
+                      contentPadding: EdgeInsets.zero, ),),
                 ],
                ),
               ),

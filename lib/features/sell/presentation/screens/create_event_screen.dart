@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -24,7 +25,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   String? _selectedDepartureLocation;
   bool _includesFoodAndDrinks = false;
   String _accessType = 'Public';
-  final List<String> _selectedImages = [];
+  final List<XFile> _selectedImages = [];
 
   bool _isLoading = false;
 
@@ -243,7 +244,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               RadioGroup(
                 groupValue: _accessType,
                 onChanged: (value){
-                  setState(() => _accessType = value! as String);
+                  setState(() => _accessType = value!);
                 },
                 child: const Row(children: [
                   Expanded(child: RadioListTile<String>(

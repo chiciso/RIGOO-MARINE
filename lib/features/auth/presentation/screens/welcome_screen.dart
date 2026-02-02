@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 
+/// Welcome screen shown after email verification
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -24,8 +25,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       return;
     }
     
-    // After welcome, show onboarding for first-time users
-    context.go(AppConstants.onboardingRoute);
+    // Navigate to main app (user already saw onboarding before signup)
+    context.go(AppConstants.mainRoute);
   }
 
   @override
@@ -38,6 +39,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
+              
               // Logo
               Container(
                 width: 120,
@@ -53,17 +55,31 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               ),
               const SizedBox(height: 48),
+              
+              // Welcome message
               Text(
                 'Welcome !',
                 style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 16),
+              
+              // Subtitle
+              Text(
+                'Your account is ready',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              
               const Spacer(),
-              // Navigation button (optional)
+              
+              // Skip button
               FloatingActionButton(
-                onPressed: () => context.go(AppConstants.onboardingRoute),
+                onPressed: () => context.go(AppConstants.mainRoute),
                 backgroundColor: AppTheme.primaryColor,
                 child: const Icon(
                   Icons.arrow_forward,

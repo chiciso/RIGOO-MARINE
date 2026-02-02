@@ -7,6 +7,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/firebase_auth_repository.dart';
 
+
+/// Sign up screen with Firebase authentication
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
 
@@ -41,8 +43,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
     try {
       final authRepo = ref.read(firebaseAuthRepositoryProvider);
-      
-      // Assuming your repo has a signUp method
+
       await authRepo.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -50,34 +51,56 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         phoneNumber: _phoneController.text.trim(),
       );
 
-      if (mounted) {
-        // Navigate to verification screen
-        context.go(
-          AppConstants.verificationRoute,
-          extra: _emailController.text,
-        );
+      if (!mounted) {
+        return;
       }
+
+      // Navigate to verification screen with email
+      context.go(
+        AppConstants.verificationRoute,
+        extra: _emailController.text.trim(),
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;
       }
-      
-      final message = switch (e.code) {
-        'email-already-in-use' => 'This email is already registered.',
-        'invalid-email' => 'The email address is badly formatted.',
-        'weak-password' => 'The password is too weak.',
-        _ => e.message ?? 'An error occurred during sign up',
-      };
+
+      String message;
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'This email is already registered. Please sign in instead.';
+        case 'invalid-email':
+          message = 'Please enter a valid email address.';
+        case 'weak-password':
+          message = 'Password is too weak. Please use a stronger password.';
+        case 'operation-not-allowed':
+          message = 'Sign up is currently disabled. Please contact support.';
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
+        default:
+          message = e.message ?? 'Sign up failed. Please try again.';
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)));
-    // ignore: avoid_catches_without_on_clauses
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } 
+    on Exception catch (e) {
+      if (!mounted) {
+        return;
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('An unexpected error occurred: ${e.toString()}'),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -97,6 +120,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 40),
+                  
                   // Logo
                   Center(
                     child: Container(
@@ -114,13 +138,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
+                  
+                  // Title
                   Text(
                     'Get started by creating an account',
                     style: Theme.of(context).textTheme.titleLarge,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Full name field
                   TextFormField(
                     controller: _fullNameController,
@@ -128,58 +154,78 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.name],
+                    enabled: !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Full name',
                       prefixIcon: Icon(Icons.person_outline),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) 
-                        ? AppConstants.requiredField : null,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return AppConstants.requiredField;
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Name must be at least 2 characters';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Email field
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.email],
+                    enabled: !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Enter your email',
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return AppConstants.requiredField;
                       }
-                      if (!value.contains('@')) {
+                      if (!value.contains('@') || !value.contains('.')) {
                         return AppConstants.invalidEmail;
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Phone field
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.telephoneNumber],
+                    enabled: !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Phone number',
                       prefixIcon: Icon(Icons.phone_outlined),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) 
-                        ? AppConstants.requiredField : null,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return AppConstants.requiredField;
+                      }
+                      // Remove spaces and dashes for validation
+                      final digitsOnly = value.replaceAll(RegExp(r'[\s\-]'), '');
+                      if (digitsOnly.length < 10) {
+                        return 'Please enter a valid phone number';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Password field
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.newPassword],
+                    enabled: !_isLoading,
                     onFieldSubmitted: (_) => _signUp(),
                     decoration: InputDecoration(
                       hintText: 'Enter a password',
@@ -190,8 +236,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               ? Icons.visibility_off_outlined
                               : Icons.visibility_outlined,
                         ),
-                        onPressed: () => setState(() =>
-                         _obscurePassword = !_obscurePassword),
+                        onPressed: () {
+                          setState(() => _obscurePassword = !_obscurePassword);
+                        },
                       ),
                     ),
                     validator: (value) {
@@ -205,7 +252,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     },
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Sign up button
                   SizedBox(
                     height: 56,
@@ -218,14 +265,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white),
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Text('Sign Up'),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Sign in link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -235,7 +283,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       TextButton(
-                        onPressed: () => context.go(AppConstants.signInRoute),
+                        onPressed: _isLoading
+                            ? null
+                            : () => context.go(AppConstants.signInRoute),
                         child: const Text('Log in'),
                       ),
                     ],

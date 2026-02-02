@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Added Riverpod import
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/firebase_auth_repository.dart';
 
+
+/// Sign in screen with Firebase authentication
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -42,34 +44,58 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         password: _passwordController.text,
       );
 
-      if (mounted) {
-        context.go('/main');
+      if (!mounted) {
+        return;
       }
+      
+      // Navigate to main screen after successful sign in
+      context.go(AppConstants.mainRoute);
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;
       }
 
-      // Handle newer Firebase error codes (like 'invalid-credential')
-      final message = switch (e.code) {
-        'user-not-found' => 'No user found with this email',
-        'wrong-password' => 'Wrong password',
-        'invalid-email' => 'Invalid email address',
-        'invalid-credential' => 'Invalid email or password',
-        'user-disabled' => 'This account has been disabled',
-        _ => e.message ?? 'An error occurred',
-      };
+      // Handle Firebase auth errors with user-friendly messages
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No user found with this email address.';
+        case 'wrong-password':
+          message = 'Incorrect password. Please try again.';
+        case 'invalid-email':
+          message = 'Please enter a valid email address.';
+        case 'invalid-credential':
+          message = 'Invalid email or password. Please check your credentials.';
+        case 'user-disabled':
+          message = 'This account has been disabled. Please contact support.';
+        case 'too-many-requests':
+          message = 'Too many failed attempts. Please try again later.';
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
+        default:
+          message = e.message ?? 'Authentication failed. Please try again.';
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
-    // ignore: avoid_catches_without_on_clauses
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+    }
+    on Exception catch (e) {
+      if (!mounted) {
+        return;
       }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('An unexpected error occurred: ${e.toString()}'),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -89,6 +115,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 40),
+                  
                   // Logo
                   Center(
                     child: Container(
@@ -106,6 +133,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
+                  
+                  // Title
                   Text(
                     'Welcome back',
                     style: Theme.of(context).textTheme.displaySmall,
@@ -120,35 +149,38 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
+                  
                   // Email field
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next, // Better UX
-                    autofillHints: const [AutofillHints.email], // Better UX
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email],
+                    enabled: !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Enter your email',
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return AppConstants.requiredField;
                       }
-                      if (!value.contains('@')) {
+                      if (!value.contains('@') || !value.contains('.')) {
                         return AppConstants.invalidEmail;
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
+                  
                   // Password field
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.done, // Better UX
-                    autofillHints: const [AutofillHints.password], // Better UX
-                    onFieldSubmitted: (_) => _signIn(), 
-                    // Triggers sign in on 'Enter'
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.password],
+                    enabled: !_isLoading,
+                    onFieldSubmitted: (_) => _signIn(),
                     decoration: InputDecoration(
                       hintText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outline),
@@ -174,16 +206,28 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
+                  
+                  // Forgot password
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        // Handle forgot password
-                      },
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              // TODO: Implement forgot password
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Password reset coming soon!',
+                                  ),
+                                ),
+                              );
+                            },
                       child: const Text('Forget password?'),
                     ),
                   ),
                   const SizedBox(height: 24),
+                  
                   // Sign in button
                   SizedBox(
                     height: 56,
@@ -204,6 +248,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  
                   // Sign up link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -213,7 +258,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       TextButton(
-                        onPressed: () => context.go(AppConstants.signUpRoute),
+                        onPressed: _isLoading
+                            ? null
+                            : () => context.go(AppConstants.signUpRoute),
                         child: const Text('Sign Up'),
                       ),
                     ],

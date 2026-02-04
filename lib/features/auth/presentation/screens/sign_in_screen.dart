@@ -7,8 +7,6 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/firebase_auth_repository.dart';
 
-
-/// Sign in screen with Firebase authentication
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -39,6 +37,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     try {
       final authRepo = ref.read(firebaseAuthRepositoryProvider);
+      
+      // ✅ Sign in
       await authRepo.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -47,53 +47,120 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (!mounted) {
         return;
       }
-      
-      // Navigate to main screen after successful sign in
-      context.go(AppConstants.mainRoute);
+
+      // ✅ Give Firebase a moment to update state
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) {
+        return;
+      }
+
+      // ✅ Get current user - with retry logic
+      User? user;
+      try {
+        user = FirebaseAuth.instance.currentUser;
+        
+        if (user == null) {
+          // Wait a bit and try again
+          await Future.delayed(const Duration(milliseconds: 500));
+          user = FirebaseAuth.instance.currentUser;
+        }
+      }on Exception catch (e) {
+        debugPrint('Error getting current user: $e');
+      }
+
+      if (user == null) {
+        // Sign in succeeded but can't get user - just go to main
+        if (!mounted) {
+          return;
+        }
+        context.go(AppConstants.mainRoute);
+        return;
+      }
+
+      // ✅ Try to reload user - but don't crash if it fails
+      try {
+        await user.reload();
+        // Get updated user after reload
+        user = FirebaseAuth.instance.currentUser;
+      } on Exception catch (e) {
+        debugPrint('Warning: Could not reload user: $e');
+        // Continue anyway - user might still be valid
+      }
+
+      // Final check
+      if (user == null) {
+        if (!mounted) {
+          return;
+        }
+        context.go(AppConstants.mainRoute);
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      // ✅ Check verification status
+      final isVerified = user.emailVerified;
+
+      if (!isVerified) {
+        // Not verified - go to verification screen
+        context.go(
+          AppConstants.verificationRoute,
+          extra: user.email ?? _emailController.text.trim(),
+        );
+      } else {
+        // Verified - go to main app
+        context.go(AppConstants.mainRoute);
+      }
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;
       }
 
-      // Handle Firebase auth errors with user-friendly messages
-      String message;
-      switch (e.code) {
-        case 'user-not-found':
-          message = 'No user found with this email address.';
-        case 'wrong-password':
-          message = 'Incorrect password. Please try again.';
-        case 'invalid-email':
-          message = 'Please enter a valid email address.';
-        case 'invalid-credential':
-          message = 'Invalid email or password. Please check your credentials.';
-        case 'user-disabled':
-          message = 'This account has been disabled. Please contact support.';
-        case 'too-many-requests':
-          message = 'Too many failed attempts. Please try again later.';
-        case 'network-request-failed':
-          message = 'Network error. Please check your internet connection.';
-        default:
-          message = e.message ?? 'Authentication failed. Please try again.';
-      }
+      final message = switch (e.code) {
+        'user-not-found' => 'No user found with this email',
+        'wrong-password' => 'Wrong password',
+        'invalid-email' => 'Invalid email address',
+        'invalid-credential' => 'Invalid email or password',
+        'user-disabled' => 'This account has been disabled',
+        'too-many-requests' =>
+          'Too many failed attempts. Please try again later.',
+        'network-request-failed' => 
+          'Network error. Please check your connection.',
+        _ => e.message ?? 'An error occurred during sign in',
+      };
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
           backgroundColor: AppTheme.errorColor,
-          behavior: SnackBarBehavior.floating,
         ),
       );
-    }
-    on Exception catch (e) {
+    } on Exception catch (e) {
       if (!mounted) {
         return;
       }
-      
+
+      debugPrint('Unexpected error during sign in: $e');
+
+      // ✅ Try to navigate anyway - user might be signed in
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          // User is signed in despite error - go to main
+          context.go(AppConstants.mainRoute);
+          return;
+        }
+      } on Exception catch (_) {
+        // Ignore
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('An unexpected error occurred: ${e.toString()}'),
+          content: Text('Error: ${e.toString()}'),
           backgroundColor: AppTheme.errorColor,
-          behavior: SnackBarBehavior.floating,
         ),
       );
     } finally {
@@ -115,7 +182,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 40),
-                  
+
                   // Logo
                   Center(
                     child: Container(
@@ -133,7 +200,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Title
                   Text(
                     'Welcome back',
@@ -149,37 +216,35 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
-                  
+
                   // Email field
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.email],
-                    enabled: !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Enter your email',
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      if (value == null || value.isEmpty) {
                         return AppConstants.requiredField;
                       }
-                      if (!value.contains('@') || !value.contains('.')) {
+                      if (!value.contains('@')) {
                         return AppConstants.invalidEmail;
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Password field
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.password],
-                    enabled: !_isLoading,
                     onFieldSubmitted: (_) => _signIn(),
                     decoration: InputDecoration(
                       hintText: 'Password',
@@ -206,28 +271,23 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  
+
                   // Forgot password
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              // TODO: Implement forgot password
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Password reset coming soon!',
-                                  ),
-                                ),
-                              );
-                            },
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Password reset coming soon!'),
+                          ),
+                        );
+                      },
                       child: const Text('Forget password?'),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Sign in button
                   SizedBox(
                     height: 56,
@@ -248,7 +308,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Sign up link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -258,9 +318,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       TextButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () => context.go(AppConstants.signUpRoute),
+                        onPressed: () => context.go(AppConstants.signUpRoute),
                         child: const Text('Sign Up'),
                       ),
                     ],

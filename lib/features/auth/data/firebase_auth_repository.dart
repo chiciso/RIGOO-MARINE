@@ -1,16 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Auth Repository Provider
+// --- Providers ---
+
+/// Auth Repository Provider
 final firebaseAuthRepositoryProvider = Provider<FirebaseAuthRepository>((ref) =>
- FirebaseAuthRepository());
+    FirebaseAuthRepository());
 
-// Auth State Provider
+/// Auth State Provider - GAP FIXED: 
+/// Using userChanges() instead of authStateChanges() ensures that 
+/// email verification updates and token refreshes trigger a UI rebuild.
 final authStateProvider = StreamProvider<User?>((ref) =>
- FirebaseAuth.instance.authStateChanges());
+    FirebaseAuth.instance.userChanges());
 
-// Current User Provider
+/// Current User Data Provider (Firestore sync)
 final currentUserProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   final authState = ref.watch(authStateProvider);
   
@@ -30,14 +35,16 @@ final currentUserProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   );
 });
 
+// --- Repository Implementation ---
+
 class FirebaseAuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Get current user
   User? get currentUser => _auth.currentUser;
+  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
-  // Sign up
+  /// Sign up with automatic Firestore document creation
   Future<User?> signUp({
     required String email,
     required String password,
@@ -50,32 +57,35 @@ class FirebaseAuthRepository {
         password: password,
       );
 
-      // Update display name
-      await credential.user?.updateDisplayName(fullName);
+      final user = credential.user;
+      if (user != null) {
+        // Update Firebase Auth Display Name
+        await user.updateDisplayName(fullName);
 
-      // User document is auto-created by Cloud Function
-      // But we can update additional fields
-      await _firestore.collection('users').doc(credential.user!.uid).set({
-        'fullName': fullName,
-        'email': email,
-        'phoneNumber': phoneNumber,
-        'profileImageUrl': '',
-        'bio': '',
-        'role': 'user',
-        'emailVerified': credential.user!.emailVerified,
-        'wishlist': [],
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastLogin': FieldValue.serverTimestamp(),
-        'isActive': true,
-      }, SetOptions(merge: true));
+        // GAP FIXED: Initialize user doc with current verification status
+        await _firestore.collection('users').doc(user.uid).set({
+          'fullName': fullName,
+          'email': email,
+          'phoneNumber': phoneNumber,
+          'profileImageUrl': '',
+          'bio': '',
+          'role': 'user',
+          'emailVerified': user.emailVerified,
+          'wishlist': [],
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'isActive': true,
+        }, SetOptions(merge: true));
+      }
 
-      return credential.user;
-    } catch (e) {
+      return user;
+    } on Exception catch (e) {
+      debugPrint('SignUp Error: $e');
       rethrow;
     }
   }
 
-  // Sign in
+  /// Sign in with safety check for Firestore updates
   Future<User?> signIn({
     required String email,
     required String password,
@@ -86,23 +96,35 @@ class FirebaseAuthRepository {
         password: password,
       );
 
-      // Update last login
-      await _firestore.collection('users').doc(credential.user!.uid).update({
-        'lastLogin': FieldValue.serverTimestamp(),
-      });
+      final user = credential.user;
+      if (user != null) {
+        // GAP FIXED: Wrap Firestore update in try-catch.
+        // If your Security Rules block unverified users from writing,
+        // this would otherwise crash the entire login process.
+        try {
+          await _firestore.collection('users').doc(user.uid).update({
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+        }on Exception catch (e) {
+          debugPrint(
+            // ignore: lines_longer_than_80_chars
+            'Note: User logged in, but Firestore update blocked (likely unverified): $e');
+        }
+      }
 
-      return credential.user;
-    } catch (e) {
+      return user;
+    } on Exception catch (e) {
+      debugPrint('SignIn Error: $e');
       rethrow;
     }
   }
 
-  // Sign out
+  /// Sign out
   Future<void> signOut() async {
     await _auth.signOut();
   }
 
-  // Send email verification
+  /// Send verification email
   Future<void> sendEmailVerification() async {
     final user = _auth.currentUser;
     if (user != null && !user.emailVerified) {
@@ -110,27 +132,35 @@ class FirebaseAuthRepository {
     }
   }
 
-  // Reload user to check verification status
   Future<void> reloadUser() async {
-    await _auth.currentUser?.reload();
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await user.getIdToken(true); 
+        // We still call reload but catch potential internal Pigeon errors
+        await user.reload(); 
+      }on Exception catch (e) {
+        debugPrint('User Reload Internal (Handled): $e');
+      }
+    }
   }
 
-  // Check if email is verified
-  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
-
-  // Update profile
+  /// Update profile data across Auth and Firestore
   Future<void> updateProfile({
     String? fullName,
     String? phoneNumber,
     String? bio,
     String? profileImageUrl,
   }) async {
-    final userId = currentUser?.uid;
-    if (userId == null) {
+    final user = _auth.currentUser;
+    if (user == null) {
       throw Exception('User not logged in');
     }
 
-    final updateData = <String, dynamic>{};
+    final updateData = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    
     if (fullName != null) {
       updateData['fullName'] = fullName;
     }
@@ -144,57 +174,51 @@ class FirebaseAuthRepository {
       updateData['profileImageUrl'] = profileImageUrl;
     }
 
-    if (updateData.isNotEmpty) {
-      updateData['updatedAt'] = FieldValue.serverTimestamp();
-      await _firestore.collection('users').doc(userId).update(updateData);
-    }
+    // Update Firestore
+    await _firestore.collection('users').doc(user.uid).update(updateData);
 
-    // Update display name in auth
+    // Sync Display Name to Auth if changed
     if (fullName != null) {
-      await currentUser?.updateDisplayName(fullName);
+      await user.updateDisplayName(fullName);
     }
   }
 
-  // Change password
+  /// Re-authenticate and change password
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
-    final user = currentUser;
+    final user = _auth.currentUser;
     if (user == null || user.email == null) {
-      throw Exception('User not logged in');
+      throw Exception('No user session found');
     }
 
-    // Re-authenticate user
     final credential = EmailAuthProvider.credential(
       email: user.email!,
       password: currentPassword,
     );
-    await user.reauthenticateWithCredential(credential);
 
-    // Update password
+    await user.reauthenticateWithCredential(credential);
     await user.updatePassword(newPassword);
   }
 
-  // Delete account
+  /// Delete account with re-authentication
   Future<void> deleteAccount(String password) async {
-    final user = currentUser;
+    final user = _auth.currentUser;
     if (user == null || user.email == null) {
-      throw Exception('User not logged in');
+      throw Exception('No user session found');
     }
 
-    // Re-authenticate
     final credential = EmailAuthProvider.credential(
       email: user.email!,
       password: password,
     );
-    await user.reauthenticateWithCredential(credential);
 
-    // Delete user (Cloud Function will handle cleanup)
+    await user.reauthenticateWithCredential(credential);
     await user.delete();
   }
 
-  // Reset password
+  /// Send password reset
   Future<void> resetPassword(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
   }

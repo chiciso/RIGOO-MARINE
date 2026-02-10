@@ -28,7 +28,13 @@ final currentUserProvider = StreamProvider<Map<String, dynamic>?>((ref) {
           .collection('users')
           .doc(user.uid)
           .snapshots()
-          .map((doc) => doc.exists ? {'id': doc.id, ...doc.data()!} : null);
+          .map((doc) {
+            if (!doc.exists) {
+              return null;
+            }
+            final data = doc.data();
+            return data != null? {'id':doc.id, ...data} : null;
+          });
     },
     loading: () => Stream.value(null),
     error: (_, _) => Stream.value(null),
@@ -59,8 +65,14 @@ class FirebaseAuthRepository {
 
       final user = credential.user;
       if (user != null) {
-        // Update Firebase Auth Display Name
+        try{
+         // Update Firebase Auth Display Name
         await user.updateDisplayName(fullName);
+        } on Exception catch (e){
+          debugPrint('warning: display name update during signup:$e');
+        }
+
+        await user.reload(); 
 
         // GAP FIXED: Initialize user doc with current verification status
         await _firestore.collection('users').doc(user.uid).set({
@@ -179,7 +191,12 @@ class FirebaseAuthRepository {
 
     // Sync Display Name to Auth if changed
     if (fullName != null) {
-      await user.updateDisplayName(fullName);
+      try {
+        await user.updateDisplayName(fullName);
+      }on Exception catch (e){
+        debugPrint('warning: display name update failed:$e ');
+        rethrow;
+      }
     }
   }
 
@@ -204,19 +221,32 @@ class FirebaseAuthRepository {
 
   /// Delete account with re-authentication
   Future<void> deleteAccount(String password) async {
-    final user = _auth.currentUser;
-    if (user == null || user.email == null) {
-      throw Exception('No user session found');
-    }
+  final user = _auth.currentUser;
+  if (user == null || user.email == null) {
+    throw Exception('No user session found');
+  }
 
+  final userId = user.uid; // Store before deletion
+
+  try {
+    // Re-authenticate
     final credential = EmailAuthProvider.credential(
       email: user.email!,
       password: password,
     );
-
     await user.reauthenticateWithCredential(credential);
+    
+    // Delete Firestore document first
+    await _firestore.collection('users').doc(userId).delete();
+    
+    // Delete Firebase Auth account
     await user.delete();
+    
+  } catch (e) {
+    debugPrint('Account deletion error: $e');
+    rethrow;
   }
+}
 
   /// Send password reset
   Future<void> resetPassword(String email) async {

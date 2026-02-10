@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
+
+// Simple provider to track if email was sent (prevents spam on re-init)
+final justSentVerificationProvider = StateProvider<bool>((ref) => false);
 
 class VerificationScreen extends ConsumerStatefulWidget {
   const VerificationScreen({
@@ -20,18 +25,31 @@ class VerificationScreen extends ConsumerStatefulWidget {
 }
 
 class _VerificationScreenState extends ConsumerState<VerificationScreen> {
+  static const int _maxVerificationChecks = 40; // ~2 minutes at 3s intervals
+  static const Duration _pollInterval = Duration(seconds: 3);
+  static const Duration _successDelay = Duration(milliseconds: 800);
+
   Timer? _resendTimer;
   Timer? _checkTimer;
   int _resendCountdown = AppConstants.resendCodeTimeout;
+  int _verificationChecks = 0;
   bool _isVerified = false;
   bool _isCheckingVerification = false;
+  bool _verificationTimedOut = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _startResendTimer();
-    _sendVerificationEmail();
     _startCheckingVerification();
+
+    // Send email only if not already sent in this flow
+    final justSent = ref.read(justSentVerificationProvider);
+    if (!justSent) {
+      _sendVerificationEmail();
+      ref.read(justSentVerificationProvider.notifier).state = true;
+    }
   }
 
   @override
@@ -56,16 +74,26 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
   }
 
   void _startCheckingVerification() {
-    // Check every 3 seconds
-    _checkTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    _checkTimer = Timer.periodic(_pollInterval, (timer) async {
+      if (_verificationChecks >= _maxVerificationChecks) {
+        timer.cancel();
+        if (mounted) {
+          setState(() {
+            _verificationTimedOut = true;
+            _errorMessage =
+      'Verification check timed out. Try resending or check your inbox again.';
+          });
+        }
+        return;
+      }
+      _verificationChecks++;
       await _checkEmailVerified();
     });
   }
 
-  /// THE FORCE SYNC LOGIC
   Future<void> _checkEmailVerified() async {
-    // Prevent multiple simultaneous checks
-    if (_isCheckingVerification || _isVerified || !mounted) {
+    if (_isCheckingVerification || _isVerified || !mounted ||
+     _verificationTimedOut) {
       return;
     }
 
@@ -74,36 +102,40 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        return;
+        throw Exception('No user logged in');
       }
 
-      // 1. Force the local app to sync with the Firebase Server
-      // This updates the 'emailVerified' boolean in the background
+      await user.reload();
+      await user.getIdToken(true);
 
-      // 2. Force an ID token refresh to be 100% sure
-      await user.getIdToken(true); 
-
-      // 3. CRITICAL: Get a fresh reference to the user object 
-      // The old 'user' variable still has 'emailVerified = false' in its memory
       final freshUser = FirebaseAuth.instance.currentUser;
+      if (freshUser == null) {
+        throw Exception('User reference lost after reload');
+      }
 
-      debugPrint('DEBUG: Verification Status: ${freshUser?.emailVerified}');
+      if (kDebugMode) {
+        debugPrint('DEBUG: Verification Status: ${freshUser.emailVerified}');
+      }
 
-      if (freshUser != null && freshUser.emailVerified) {
+      if (freshUser.emailVerified) {
         _checkTimer?.cancel();
         setState(() => _isVerified = true);
 
+        await Future.delayed(_successDelay);
         if (mounted) {
-          // Give the user a half-second to see the "Success" UI
-          await Future.delayed(const Duration(milliseconds: 500));
-          
-          if (mounted) {
-            context.go(AppConstants.welcomeRoute);
-          }
+          context.go(AppConstants.welcomeRoute);
         }
       }
     }on Exception catch (e) {
-      debugPrint('Error during verification check: $e');
+      if (kDebugMode) {
+        debugPrint('Error during verification check: $e');
+      }
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Verification check failed: ${e.toString().
+          split('.').first}. Please try again.';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _isCheckingVerification = false);
@@ -118,35 +150,36 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         await user.sendEmailVerification();
       }
     }on Exception catch (e) {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        _showSnackBar('Error sending email: ${e.toString().
+        split('.').first}', AppTheme.errorColor);
       }
-      _showSnackBar(
-        'Error sending email: ${e.toString()}', AppTheme.errorColor);
     }
   }
 
   Future<void> _resendVerificationEmail() async {
-    if (_resendCountdown > 0) {
+    if (_resendCountdown > 0 || _isCheckingVerification) {
       return;
     }
     try {
       await _sendVerificationEmail();
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() => _resendCountdown = AppConstants.resendCodeTimeout);
+        _startResendTimer();
+        _showSnackBar('Verification email resent!', AppTheme.successColor);
       }
-      setState(() => _resendCountdown = AppConstants.resendCodeTimeout);
-      _startResendTimer();
-      _showSnackBar('Verification email resent!', AppTheme.successColor);
-    } on Exception catch (e) {
-      if (!mounted) {
-        return;
+    }on Exception catch (e) {
+      if (mounted) {
+        _showSnackBar('Error resending: ${e.toString().split('.').first}',
+         AppTheme.errorColor);
       }
-      _showSnackBar('Error: $e', AppTheme.errorColor);
     }
   }
 
   void _showSnackBar(String message, Color color) {
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
     );
@@ -154,7 +187,8 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+       // Use theme for dark mode
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -165,6 +199,21 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
               _buildHeader(),
               const SizedBox(height: 32),
               _buildStatusSection(),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: AppTheme.errorColor),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 16),
+              const Text(
+                // ignore: lines_longer_than_80_chars
+                'Tips: Check spam folder, add our email to contacts, or try a different browser for the link.',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
               const Spacer(),
               _buildActions(),
               const SizedBox(height: 24),
@@ -212,6 +261,12 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
        AppTheme.primaryColor,
         'Checking Firebase server...', isLoading: true);
     }
+    if (_verificationTimedOut) {
+      return _statusBox(
+        Icons.timer_off,
+        AppTheme.errorColor,
+        'Verification check timed out');
+    }
     return const SizedBox.shrink();
   }
 
@@ -231,12 +286,14 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
             width: 20,
              height: 20,
               child: CircularProgressIndicator(strokeWidth: 2))
-          else Icon(icon, color: color),
+          else if (icon != null) Icon(icon, color: color),
           const SizedBox(width: 12),
-          Text(text,
-           style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(text,
+             style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -247,16 +304,18 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: _isVerified ? null : _checkEmailVerified,
+            onPressed: (_isCheckingVerification || _isVerified ||
+             _verificationTimedOut) ? null : _checkEmailVerified,
             child: const Text("I've Already Verified"),
           ),
         ),
         const SizedBox(height: 16),
         TextButton(
-          onPressed: _resendCountdown > 0 || _isVerified ? null :
-           _resendVerificationEmail,
-          child: Text(_resendCountdown > 0 ? 'Resend in ${_resendCountdown}s' :
-           'Resend Email'),
+          onPressed: (_resendCountdown > 0 || _isVerified ||
+           _isCheckingVerification ||
+            _verificationTimedOut) ? null : _resendVerificationEmail,
+          child: Text(_resendCountdown > 0 ? 'Resend in ${
+            _resendCountdown}s' : 'Resend Email'),
         ),
       ],
     );

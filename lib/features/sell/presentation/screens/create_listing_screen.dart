@@ -6,12 +6,11 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/services/firebase_storage_service.dart';
+import '../../../../core/services/cloudinary_storage_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/dropdown_field.dart';
 import '../widgets/image_picker_grid.dart';
 
-/// Create listing screen with Firebase integration
 class CreateListingScreen extends ConsumerStatefulWidget {
   const CreateListingScreen({super.key});
 
@@ -35,7 +34,7 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   String? _selectedItemType;
   String? _selectedCondition;
   String? _selectedEngineType;
-  List<XFile> _selectedImages = [];
+  final List<XFile> _selectedImages = [];
 
   bool _isLoading = false;
 
@@ -56,30 +55,21 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
   Future<void> _submitListing() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all required fields'),
-          backgroundColor: AppTheme.errorColor,
-        ),
+        const SnackBar(content: Text('Please fill all required fields')),
       );
       return;
     }
 
     if (_selectedItemType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an item type'),
-          backgroundColor: AppTheme.errorColor,
-        ),
+        const SnackBar(content: Text('Please select item type')),
       );
       return;
     }
 
     if (_selectedCondition == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a condition'),
-          backgroundColor: AppTheme.errorColor,
-        ),
+        const SnackBar(content: Text('Please select condition')),
       );
       return;
     }
@@ -87,81 +77,53 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Get current user
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('User not logged in');
       }
 
-      // Get user data
+      // Get user data from Firestore
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
+
       final userData = userDoc.data();
-      final sellerName = userData?['fullName'] as String? ?? 'Unknown';
+      final sellerName = userData?['fullName'] ?? 'Unknown';
 
-      // Create listing document to get ID
-      final listingRef =
-          FirebaseFirestore.instance.collection('listings').doc();
-
-      // Upload images if any
-      final  imageUrls = <String>[];
+      // ✅ Upload images to CLOUDINARY if selected
+      final imageUrls = <String>[];
       if (_selectedImages.isNotEmpty) {
-        final storageService = ref.read(firebaseStorageServiceProvider);
-        
-        for (final image in _selectedImages) {
-          final url = await storageService.uploadListingImage(
-            listingRef.id,
-            image,
-          );
-          imageUrls.add(url);
-        }
+        final storageService = ref.read(cloudinaryStorageServiceProvider);
+        imageUrls.addAll(
+          await storageService.uploadListingImages(_selectedImages),
+        );
       }
 
-      // Create listing data
-      final listingData = <String, dynamic>{
+      // ✅ Save to Firestore with Cloudinary image URLs
+      await FirebaseFirestore.instance.collection('listings').add({
         'name': _nameController.text.trim(),
-        'itemType': _selectedItemType,
+        'description': _descriptionController.text.trim(),
+        'category': _selectedItemType,
+        'listingType': 'For Sale',
         'price': double.parse(_priceController.text.trim()),
         'condition': _selectedCondition,
-        'category': _selectedItemType, // Using itemType as category
+        'engineModel': _engineModelController.text.trim(),
+        'bodyModel': _bodyModelController.text.trim(),
+        'engineType': _selectedEngineType ?? '',
+        'enginePower': _enginePowerController.text.trim(),
+        'engineHours': _engineHoursController.text.trim(),
+        'length': double.tryParse(_bodyLengthController.text.trim()) ?? 0,
+        'year': DateTime.now().year,
+        'images': imageUrls,
         'sellerId': user.uid,
         'sellerName': sellerName,
-        'imageUrls': imageUrls,
-        'listingType': 'For Sale',
-        'isFeatured': false,
+        'address': _addressController.text.trim(),
+        'viewCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      // Add optional fields
-      if (_engineModelController.text.trim().isNotEmpty) {
-        listingData['engineModel'] = _engineModelController.text.trim();
-      }
-      if (_bodyModelController.text.trim().isNotEmpty) {
-        listingData['bodyModel'] = _bodyModelController.text.trim();
-      }
-      if (_selectedEngineType != null) {
-        listingData['engineType'] = _selectedEngineType;
-      }
-      if (_enginePowerController.text.trim().isNotEmpty) {
-        listingData['enginePower'] = _enginePowerController.text.trim();
-      }
-      if (_engineHoursController.text.trim().isNotEmpty) {
-        listingData['engineHours'] = _engineHoursController.text.trim();
-      }
-      if (_bodyLengthController.text.trim().isNotEmpty) {
-        listingData['bodyLength'] = _bodyLengthController.text.trim();
-      }
-      if (_descriptionController.text.trim().isNotEmpty) {
-        listingData['description'] = _descriptionController.text.trim();
-      }
-      if (_addressController.text.trim().isNotEmpty) {
-        listingData['address'] = _addressController.text.trim();
-      }
-
-      // Save to Firestore
-      await listingRef.set(listingData);
+      });
 
       if (!mounted) {
         return;
@@ -169,27 +131,18 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(AppConstants.listingCreated),
+          content: Text('Listing created successfully!'),
           backgroundColor: AppTheme.successColor,
         ),
       );
 
       context.pop();
-    } on FirebaseException catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.message ?? 'Failed to create listing'}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
     } on Exception catch (e) {
       if (!mounted) {
         return;
       }
+
+      debugPrint('Error creating listing: $e');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -257,12 +210,11 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _nameController,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter item name',
                   ),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
+                    if (value == null || value.isEmpty) {
                       return AppConstants.requiredField;
                     }
                     return null;
@@ -275,7 +227,9 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                   images: _selectedImages,
                   onImagesChanged: (images) {
                     setState(() {
-                      _selectedImages = images;
+                      _selectedImages
+                        ..clear()
+                        ..addAll(images);
                     });
                   },
                 ),
@@ -290,17 +244,17 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 TextFormField(
                   controller: _priceController,
                   keyboardType: TextInputType.number,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: r'$ USD',
                     prefixText: r'$ ',
                   ),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
+                    if (value == null || value.isEmpty) {
                       return AppConstants.requiredField;
                     }
-                    if (double.tryParse(value.trim()) == null) {
-                      return 'Please enter a valid price';
+                    final price = double.tryParse(value);
+                    if (price == null) {
+                      return 'Enter valid price';
                     }
                     return null;
                   },
@@ -331,7 +285,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _engineModelController,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter engine model',
                   ),
@@ -346,7 +299,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _bodyModelController,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter body model',
                   ),
@@ -377,7 +329,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _enginePowerController,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter engine power',
                   ),
@@ -393,7 +344,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 TextFormField(
                   controller: _engineHoursController,
                   keyboardType: TextInputType.number,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter engine hours',
                   ),
@@ -408,7 +358,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _bodyLengthController,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter body length',
                   ),
@@ -424,7 +373,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 4,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Write a description',
                     alignLabelWithHint: true,
@@ -440,7 +388,6 @@ class _CreateListingScreenState extends ConsumerState<CreateListingScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _addressController,
-                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'Enter address',
                   ),

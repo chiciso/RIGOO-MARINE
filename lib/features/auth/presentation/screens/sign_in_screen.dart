@@ -43,77 +43,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-
-      if (!mounted) {
-        return;
-      }
-
-      // ✅ Give Firebase a moment to update state
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (!mounted) {
-        return;
-      }
-
-      // ✅ Get current user - with retry logic
-      User? user;
-      try {
-        user = FirebaseAuth.instance.currentUser;
-        
-        if (user == null) {
-          // Wait a bit and try again
-          await Future.delayed(const Duration(milliseconds: 500));
-          user = FirebaseAuth.instance.currentUser;
-        }
-      }on Exception catch (e) {
-        debugPrint('Error getting current user: $e');
-      }
-
-      if (user == null) {
-        // Sign in succeeded but can't get user - just go to main
-        if (!mounted) {
-          return;
-        }
-        context.go(AppConstants.mainRoute);
-        return;
-      }
-
-      // ✅ Try to reload user - but don't crash if it fails
-      try {
-        await user.reload();
-        // Get updated user after reload
-        user = FirebaseAuth.instance.currentUser;
-      } on Exception catch (e) {
-        debugPrint('Warning: Could not reload user: $e');
-        // Continue anyway - user might still be valid
-      }
-
-      // Final check
-      if (user == null) {
-        if (!mounted) {
-          return;
-        }
-        context.go(AppConstants.mainRoute);
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      // ✅ Check verification status
-      final isVerified = user.emailVerified;
-
-      if (!isVerified) {
-        // Not verified - go to verification screen
-        context.go(
-          AppConstants.verificationRoute,
-          extra: user.email ?? _emailController.text.trim(),
-        );
-      } else {
-        // Verified - go to main app
-        context.go(AppConstants.mainRoute);
-      }
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;
@@ -142,21 +71,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (!mounted) {
         return;
       }
-
       debugPrint('Unexpected error during sign in: $e');
-
-      // ✅ Try to navigate anyway - user might be signed in
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          // User is signed in despite error - go to main
-          context.go(AppConstants.mainRoute);
-          return;
-        }
-      } on Exception catch (_) {
-        // Ignore
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),

@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "1088170354314",
+    "firebase_url": "https://rigoo-marine-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "rigoo-marine",
     "storage_bucket": "rigoo-marine.firebasestorage.app"
   },
@@ -29,6 +30,13 @@
             {
               "client_id": "1088170354314-lepli0l4q498s0403vp4jf6lfgheu3hv.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "1088170354314-962m8p8dc9h4anblc8kg4m67oiat3auk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.rigooMarine"
+              }
             }
           ]
         }

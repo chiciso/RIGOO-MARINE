@@ -54,6 +54,7 @@ class DefaultFirebaseOptions {
     appId: '1:1088170354314:android:038b6c7cdb28e35ed2af73',
     messagingSenderId: '1088170354314',
     projectId: 'rigoo-marine',
+    databaseURL: 'https://rigoo-marine-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'rigoo-marine.firebasestorage.app',
   );
 
@@ -62,8 +63,10 @@ class DefaultFirebaseOptions {
     appId: '1:1088170354314:ios:82e5429ac2cddb4ad2af73',
     messagingSenderId: '1088170354314',
     projectId: 'rigoo-marine',
+    databaseURL: 'https://rigoo-marine-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'rigoo-marine.firebasestorage.app',
     iosClientId: '1088170354314-962m8p8dc9h4anblc8kg4m67oiat3auk.apps.googleusercontent.com',
     iosBundleId: 'com.example.rigooMarine',
   );
+
 }

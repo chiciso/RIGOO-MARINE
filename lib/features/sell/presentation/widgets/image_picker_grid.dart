@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/services/firebase_storage_service.dart';
+import '../../../../core/services/cloudinary_storage_service.dart';
 import '../../../../core/theme/app_theme.dart';
+
 
 class ImagePickerGrid extends ConsumerWidget {
   const ImagePickerGrid({
@@ -23,7 +24,7 @@ class ImagePickerGrid extends ConsumerWidget {
       return;
     }
 
-    final storageService = ref.read(firebaseStorageServiceProvider);
+    final storageService = ref.read(cloudinaryStorageServiceProvider);
     final image = await storageService.pickImage();
 
     if (image != null) {

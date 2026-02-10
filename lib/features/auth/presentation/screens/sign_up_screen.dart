@@ -50,16 +50,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         fullName: _fullNameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
       );
-
-      if (!mounted) {
-        return;
-      }
-
-      // Navigate to verification screen with email
-      context.go(
-        AppConstants.verificationRoute,
-        extra: _emailController.text.trim(),
-      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;

@@ -41,7 +41,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       // ✅ Sign in
       await authRepo.signIn(
         email: _emailController.text.trim(),
-        password: _passwordController.text,
+        password: _passwordController.text.trim(),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
